@@ -1,0 +1,36 @@
+# Python
+__pycache__/
+*.py[cod]
+*.egg-info/
+dist/
+build/
+*.sqlite3
+*.db
+*.log
+
+# virtualenvs
+.venv/
+.venv-py311/
+venv/
+ENV/
+
+# macOS
+.DS_Store
+
+# Data / ML artifacts (do not commit)
+ml/saved/
+ml/data/
+*.h5
+*.keras
+*.ckpt
+*.pt
+
+# Node
+node_modules/
+build/
+npm-debug.log
+.env
+
+# IDE
+.vscode/
+.idea/
