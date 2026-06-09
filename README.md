@@ -4,7 +4,7 @@ Project scaffold for a health monitoring system with the following structure:
 
 - backend/: FastAPI app and DB models
 - ml/: LSTM training and inference stubs
-- simulator/: simple script to simulate ESP32 sensor data and POST to backend
+- simulator/: simple script to simulate ESP8266 sensor data and POST to backend
 - frontend/: React starter app (Day 4)
 - esp32/: placeholder Arduino firmware
 
