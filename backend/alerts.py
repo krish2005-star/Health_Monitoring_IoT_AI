@@ -23,7 +23,7 @@ def get_approximate_location() -> str:
 
 def send_alerts(patient_id: str, bpm: float, spo2: float,
                 reason: str, alert_type: str, db):
-    from .models import Patient, Guardian, Doctor
+    from models import Patient, Guardian, Doctor
     patient   = db.query(Patient).filter(Patient.id == patient_id).first()
     guardians = db.query(Guardian).filter(Guardian.patient_id == patient_id).all()
     doctor    = None

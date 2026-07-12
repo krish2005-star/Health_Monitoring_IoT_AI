@@ -5,7 +5,7 @@ from fastapi import Depends, HTTPException, status
 from fastapi.security import OAuth2PasswordBearer
 from sqlalchemy.orm import Session
 from .database import get_db
-from . import models
+from .import models
 
 SECRET_KEY = "healthmonitor-mgit-2025-iomp-fixed-key-xyz123"
 ALGORITHM   = "HS256"

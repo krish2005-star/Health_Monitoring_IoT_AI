@@ -5,14 +5,13 @@ from fastapi.security import OAuth2PasswordRequestForm
 from sqlalchemy.orm import Session
 from datetime import datetime
 
+from .serial_reader import start_serial_thread, sensor_status, latest_bpm
 from . import models, schemas
 from .database import engine, get_db
-from .auth import (hash_password, verify_password,
-                   create_token, get_current_user, require_role)
+from .auth import hash_password, verify_password, create_token, get_current_user, require_role
 from .alerts import send_alerts
 from .report import generate_report
 from ml.predict import get_anomaly_score, load_artifacts, patient_buffers
-from ml.shap_explain import get_shap_plot
 from ml.shap_explain import get_shap_plot, load_shap
 
 models.Base.metadata.create_all(bind=engine)
@@ -33,6 +32,9 @@ async def startup():
 
     print("Loading SHAP...")
     load_shap()
+
+    print("Starting serial thread...")
+    start_serial_thread()
 
 # ─── AUTH ────────────────────────────────────────────────
 
@@ -349,3 +351,7 @@ def patients_simple(db: Session = Depends(get_db)):
     """public endpoint for simulator — returns id + base_bpm only"""
     patients = db.query(models.Patient).all()
     return [{"id": p.id, "base_bpm": 72} for p in patients]
+
+@app.get("/sensor/status", tags=["sensors"])
+def sensor_status_check():
+    return {"status": sensor_status, "bpm": latest_bpm}
