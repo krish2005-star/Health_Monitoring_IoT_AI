@@ -3,6 +3,7 @@ import smtplib
 from email.mime.text import MIMEText
 from email.mime.multipart import MIMEMultipart
 from datetime import datetime
+from backend.models import Patient, Guardian, Doctor
 
 FAST2SMS_KEY = "2BYIsGtLlFuhXZKngJkyiqvrP3pdm48E1x6TAHjaDceNU0z7VOKDFP9ixb5ryc1HvgJf0AUSR3L7NmGn"
 
@@ -21,36 +22,85 @@ def get_approximate_location() -> str:
         pass
     return "Location unavailable"
 
-def send_alerts(patient_id: str, bpm: float, spo2: float,
-                reason: str, alert_type: str, db):
-    from models import Patient, Guardian, Doctor
-    patient   = db.query(Patient).filter(Patient.id == patient_id).first()
-    guardians = db.query(Guardian).filter(Guardian.patient_id == patient_id).all()
-    doctor    = None
-    if patient and patient.doctor_id:
-        doctor = db.query(Doctor).filter(Doctor.id == patient.doctor_id).first()
+from .database import SessionLocal
 
-    location = get_approximate_location()
-    patient_name = patient.name if patient else patient_id
+from .database import SessionLocal
 
-    # build alert emoji based on type
-    emoji = "🚨" if alert_type == "fall_detected" else \
-            "💔" if alert_type == "bpm_anomaly" else "😮‍💨"
+def send_alerts(
+    patient_id,
+    bpm,
+    spo2,
+    reason,
+    alert_type
+):
+    db = SessionLocal()
 
-    recipients = [{"name": g.name, "phone": g.phone,
-                   "email": g.email, "relation": g.relation}
-                  for g in guardians]
-    if doctor:
-        recipients.append({"name": f"Dr. {doctor.name}",
-                            "phone": doctor.phone,
-                            "email": doctor.email,
-                            "relation": "Doctor"})
+    try:
 
-    for r in recipients:
-        _send_sms(r["phone"], patient_name, bpm, spo2,
-                  reason, alert_type, location)
-        _send_email(r["email"], r["name"], patient_name,
-                    bpm, spo2, reason, alert_type, location)
+        patient = db.query(Patient).filter(
+            Patient.id == patient_id
+        ).first()
+
+        guardians = db.query(Guardian).filter(
+            Guardian.patient_id == patient_id
+        ).all()
+
+        doctor = None
+
+        if patient and patient.doctor_id:
+            doctor = db.query(Doctor).filter(
+                Doctor.id == patient.doctor_id
+            ).first()
+
+        location = get_approximate_location()
+
+        patient_name = patient.name if patient else patient_id
+
+        recipients = [
+            {
+                "name": g.name,
+                "phone": g.phone,
+                "email": g.email,
+                "relation": g.relation
+            }
+            for g in guardians
+        ]
+
+        if doctor:
+            recipients.append(
+                {
+                    "name": f"Dr. {doctor.name}",
+                    "phone": doctor.phone,
+                    "email": doctor.email,
+                    "relation": "Doctor"
+                }
+            )
+
+        for r in recipients:
+          print(f"Alert generated for {patient_name}")
+            # _send_sms(
+            #     r["phone"],
+            #     patient_name,
+            #     bpm,
+            #     spo2,
+            #     reason,
+            #     alert_type,
+            #     location
+            # )
+
+            # _send_email(
+            #     r["email"],
+            #     r["name"],
+            #     patient_name,
+            #     bpm,
+            #     spo2,
+            #     reason,
+            #     alert_type,
+            #     location
+            # )
+
+    finally:
+        db.close()
 
 
 def _send_sms(to_phone, patient_name, bpm, spo2,

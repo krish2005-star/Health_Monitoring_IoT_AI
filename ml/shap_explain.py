@@ -61,6 +61,9 @@ def load_shap():
 
 
 def get_shap_plot(sequence: list) -> bytes:
+
+    print("Sequence length:", len(sequence))
+    
     if explainer is None:
         return _shap_unavailable_image("SHAP unavailable: model or artifacts missing")
     if not sequence or len(sequence) < 30:

@@ -4,6 +4,8 @@ from fastapi.responses import Response
 from fastapi.security import OAuth2PasswordRequestForm
 from sqlalchemy.orm import Session
 from datetime import datetime
+from fastapi import BackgroundTasks
+import time
 
 from .serial_reader import start_serial_thread, sensor_status, latest_bpm
 from . import models, schemas
@@ -25,6 +27,8 @@ app.add_middleware(
     allow_headers=["*"],
 )
 
+last_alert_times = {}
+
 @app.on_event("startup")
 async def startup():
     print("Loading ML artifacts...")
@@ -35,6 +39,8 @@ async def startup():
 
     print("Starting serial thread...")
     start_serial_thread()
+
+    print("✅ Serial thread started")   # <-- ADD HERE
 
 # ─── AUTH ────────────────────────────────────────────────
 
@@ -143,9 +149,27 @@ def login(data: schemas.LoginIn, db: Session = Depends(get_db)):
               .filter(models.Guardian.user_id == user.id).first()
         if g: name = g.name
 
-    token = create_token({"user_id": user.id, "role": user.role})
-    return {"access_token": token, "token_type": "bearer",
-            "role": user.role, "name": name}
+    patient_id = None
+
+    if user.role == "patient":
+        p = db.query(models.Patient)\
+            .filter(models.Patient.user_id == user.id)\
+            .first()
+        if p:
+            patient_id = p.id
+
+    token = create_token({
+        "user_id": user.id,
+        "role": user.role
+    })
+
+    return {
+        "access_token": token,
+        "token_type": "bearer",
+        "role": user.role,
+        "name": name,
+        "patient_id": patient_id
+    }
 
 # ─── PATIENT ROUTES ──────────────────────────────────────
 
@@ -252,8 +276,11 @@ def all_doctors(current_user=Depends(require_role("admin")),
 from ml.fall_detection import detect_fall, classify_activity_motion
 
 @app.post("/vitals", tags=["sensors"])
-def receive_vitals(data: schemas.VitalIn,
-                   db: Session = Depends(get_db)):
+def receive_vitals(
+    data: schemas.VitalIn,
+    background_tasks: BackgroundTasks,
+    db: Session = Depends(get_db)
+):
 
     # fall detection
     fall_detected, fall_reason = detect_fall(
@@ -297,8 +324,42 @@ def receive_vitals(data: schemas.VitalIn,
         db.add(alert)
         db.commit()
 
-        send_alerts(data.patient_id, data.bpm, data.spo2,
-                    final_reason, alert_type, db)
+        # ----------------------------
+        # Update SHAP buffer
+        # ----------------------------
+        if data.patient_id not in patient_buffers:
+            patient_buffers[data.patient_id] = []
+
+        patient_buffers[data.patient_id].append(data.bpm)
+
+        # Keep only the latest 30 readings
+        patient_buffers[data.patient_id] = patient_buffers[data.patient_id][-30:]
+
+        print(
+            "SHAP Buffer:",
+            len(patient_buffers[data.patient_id]),
+            patient_buffers[data.patient_id][-5:]
+        )
+
+        current_time = time.time()
+
+        last_time = last_alert_times.get(
+            data.patient_id,
+            0
+        )
+
+        if current_time - last_time > 60:
+
+            last_alert_times[data.patient_id] = current_time
+
+            background_tasks.add_task(
+    send_alerts,
+    data.patient_id,
+    data.bpm,
+    data.spo2,
+    final_reason,
+    alert_type
+)
 
     return {
         "status":        "ok",
